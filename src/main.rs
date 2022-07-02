@@ -1,9 +1,11 @@
 use actix_web::{guard, web, web::Data, App, HttpResponse, HttpServer, Result};
 use async_graphql::{
     http::{playground_source, GraphQLPlaygroundConfig},
-    EmptyMutation, EmptySubscription, Object, Schema,
+    EmptySubscription, Object, Schema,
 };
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
 struct Query;
 #[Object]
@@ -13,7 +15,43 @@ impl Query {
     }
 }
 
-type ApiSchema = Schema<Query, EmptyMutation, EmptySubscription>;
+static TODOS: Lazy<Mutex<Vec<Todo>>> = Lazy::new(|| Mutex::new(vec![]));
+
+#[allow(dead_code)]
+struct Todo {
+    title: String,
+    description: String,
+    is_done: bool,
+    due_date: Option<String>,
+}
+impl Todo {
+    fn new(title: String, description: String, due_date: Option<String>) -> Todo {
+        Todo {
+            title,
+            description,
+            is_done: false,
+            due_date,
+        }
+    }
+}
+
+struct Mutation;
+
+#[Object]
+impl Mutation {
+    async fn create_todo(
+        &self,
+        title: String,
+        description: String,
+        due_date: Option<String>,
+    ) -> bool {
+        let todo = Todo::new(title, description, due_date);
+        TODOS.lock().unwrap().push(todo);
+        true
+    }
+}
+
+type ApiSchema = Schema<Query, Mutation, EmptySubscription>;
 
 async fn index(schema: web::Data<ApiSchema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
@@ -27,7 +65,7 @@ async fn index_playground() -> Result<HttpResponse> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let schema = Schema::build(Query, EmptyMutation, EmptySubscription).finish();
+    let schema = Schema::build(Query, Mutation, EmptySubscription).finish();
 
     println!("listen ...");
     println!("http://127.0.0.1:8080");
