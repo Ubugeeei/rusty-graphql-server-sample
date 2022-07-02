@@ -1,24 +1,23 @@
 use actix_web::{guard, web, web::Data, App, HttpResponse, HttpServer, Result};
 use async_graphql::{
     http::{playground_source, GraphQLPlaygroundConfig},
-    EmptySubscription, Object, Schema,
+    EmptySubscription, Object, Schema, SimpleObject,
 };
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-struct Query;
-#[Object]
-impl Query {
-    async fn static_value(&self) -> usize {
-        42
-    }
-}
-
+// tentative db
 static TODOS: Lazy<Mutex<Vec<Todo>>> = Lazy::new(|| Mutex::new(vec![]));
+static SEQUENCE_ID: Lazy<Mutex<usize>> = Lazy::new(|| Mutex::new(0));
 
+/*
+ * Types
+ */
 #[allow(dead_code)]
+#[derive(SimpleObject, Clone)]
 struct Todo {
+    id: usize,
     title: String,
     description: String,
     is_done: bool,
@@ -26,7 +25,10 @@ struct Todo {
 }
 impl Todo {
     fn new(title: String, description: String, due_date: Option<String>) -> Todo {
+        let mut id = SEQUENCE_ID.lock().unwrap();
+        *id += 1;
         Todo {
+            id: *id,
             title,
             description,
             is_done: false,
@@ -35,8 +37,25 @@ impl Todo {
     }
 }
 
-struct Mutation;
+/*
+ * Queries
+ */
+struct Query;
+#[Object]
+impl Query {
+    async fn static_value(&self) -> usize {
+        42
+    }
 
+    async fn get_todos(&self) -> Vec<Todo> {
+        TODOS.lock().unwrap().clone()
+    }
+}
+
+/*
+ * Mutations
+ */
+struct Mutation;
 #[Object]
 impl Mutation {
     async fn create_todo(
