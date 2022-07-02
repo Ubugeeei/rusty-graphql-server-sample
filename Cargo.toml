@@ -1,5 +1,5 @@
 [package]
-name = "rusy-graphql-server-sanmple"
+name = "rusty-graphql-server-sanmple"
 version = "0.1.0"
 edition = "2021"
 
